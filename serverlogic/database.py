@@ -4,10 +4,9 @@ import datetime
 import os
 
 #для тестов в оперативной памяти
-DATABASE_URL = "sqlite:///:memory:"
+#DATABASE_URL = "sqlite:///:memory:"
 
-
-
+DATABASE_URL =os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
@@ -29,9 +28,7 @@ class FileServ(AbstractModel):
     minio_path = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.utcnow) 
     metadata_json = Column(JSON)
-    
 
-    
 
 def init_db(): #инициализация таблицы.
     AbstractModel.metadata.create_all(bind=engine)
@@ -45,11 +42,10 @@ def timetest():
         db.commit()
     
     result = db.query(Users).first()
-    db.close
+    db.close()
     return result
 
-init_db()
-print(timetest().test_time)
+# print(timetest().test_time)
 
     
 
@@ -66,4 +62,5 @@ def localtest():
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    db.close()
     print(new_user.id)
