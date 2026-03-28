@@ -1,10 +1,13 @@
 from fastapi import FastAPI, File, UploadFile
 from serverlogic.database import *
 from fastapi.responses import FileResponse, HTMLResponse
-import os
+from datetime import date, datetime
 from zipfile import ZipFile
 from io import BytesIO
 import json
+from pydantic import BaseModel, field_validator
+from typing import List
+
 
 init_db()
 
@@ -13,6 +16,25 @@ app = FastAPI()
 @app.get("/")
 async def index():
     return FileResponse('client/index.html')
+
+class itemlist(BaseModel):
+    from_date: date
+    to_date: date
+    xsd: str
+    alias: str
+
+    @field_validator('from_date', 'to_date', mode="before")
+    def parse_time(cls, v):
+        if isinstance(v, str):
+            try:
+                return datetime.strptime(v, "%d.%m.%Y").date()
+            except ValueError:
+                raise ValueError(f"Неверный формат даты: {v}")
+
+
+class schemalist(BaseModel):
+    tastes: dict[str, itemlist]  
+    
 
 @app.post('/upload', response_class=HTMLResponse)
 async def upload_file(file: UploadFile):
@@ -27,7 +49,8 @@ async def upload_file(file: UploadFile):
         zfiledata = BytesIO(byte)
         
         with ZipFile(zfiledata, "r") as myzip:
-            for f in myzip.namelist(): 
+            ziplist = myzip.namelist()
+            for f in ziplist: 
                 if  f[-4:] == "json":
                     jsonfile = f
                 else:
@@ -37,7 +60,12 @@ async def upload_file(file: UploadFile):
                 return f'<p>невернывй тип файла, загрузити XLS или zip с json файлом </p>'
             
             resultjson = json.loads(myzip.read(jsonfile))
-            print(resultjson)
+            data = schemalist(tastes=resultjson)
+            name = list(data.tastes.keys())
+            for name, item in data.tastes.items():
+                print((item.to_date))
+                if item.xsd in ziplist:
+                    print(myzip.open(item.xsd))
             return f'<p>Файлы что хранятся:{str(result)} </p> <p>json файл:{jsonfile} </p>'
         
     if file.filename[-3:] == "xsd":
