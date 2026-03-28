@@ -7,9 +7,20 @@ from io import BytesIO
 import json
 from pydantic import BaseModel, field_validator
 from typing import List
+from serverlogic.mini import S3BucketService
 
 
 init_db()
+
+
+minio_handler = S3BucketService(
+    minio_endpoint=os.getenv("MINIO_ENDPOINT"),
+    access_key=os.getenv("MINIO_ROOT_USER"),
+    secret_key=os.getenv("MINIO_ROOT_PASSWORD"),
+    bucket=os.getenv("MINIO_BUCKET_NAME"),
+    secure=False
+)
+print(os.getenv("MINIO_ENDPOINT"))
 
 app = FastAPI()
 
@@ -40,7 +51,6 @@ class schemalist(BaseModel):
 async def upload_file(file: UploadFile):
     #Zip файлы
     if file.filename[-3:] == "zip":
-        print(True)
 
         result =[]
         jsonfile = None
@@ -62,13 +72,26 @@ async def upload_file(file: UploadFile):
             resultjson = json.loads(myzip.read(jsonfile))
             data = schemalist(tastes=resultjson)
             name = list(data.tastes.keys())
+            add_file = []
+            not_in_zip = []
             for name, item in data.tastes.items():
-                print((item.to_date))
                 if item.xsd in ziplist:
-                    print(myzip.open(item.xsd))
-            return f'<p>Файлы что хранятся:{str(result)} </p> <p>json файл:{jsonfile} </p>'
+                    add_file.append(item.xsd)
+                    minio_handler.upload_file(item.xsd, myzip.open(item.xsd), myzip.getinfo(item.xsd).file_size)
+                else: not_in_zip.append(item.xsd)
+            not_in_json = list(set(result) - set(add_file))
+            
+            if add_file: add_p = f"<p> Добавленны файла:{str(add_file)}</p>"
+            else: add_p = f"<p> ошибка добавления файла </p>"
+            if not_in_zip: notzip_p= f'<p>Файлы отсутсвуют в Zip:{str(not_in_zip)}</p>'
+            else: notzip_p = ''
+            if not_in_json: notjson_p=f'<p>Файлы отсутсвуют в json:{str(not_in_json)}</p>'
+            else: notjson_p = ''
+
+            return add_p + notzip_p + notjson_p
         
     if file.filename[-3:] == "xsd":
+        print(minio_handler.upload_file(file.filename, file.file, file.size))
         return f'<p> файл xsd:{file.filename}</p>'
     else:
         return f'<p>невернывй тип файла, загрузити xsd или zip с json файлом </p>'
