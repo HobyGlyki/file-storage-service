@@ -1,7 +1,8 @@
 from sqlalchemy import Column, Integer, String, JSON, DateTime, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, as_declarative
-import datetime
+from datetime import datetime
 import os
+import json
 
 #для тестов в оперативной памяти
 #DATABASE_URL = "sqlite:///:memory:"
@@ -13,7 +14,6 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 @as_declarative() #декоратор для класса
 class AbstractModel:
     id = Column(Integer, primary_key=True, autoincrement=True)
-    test_time = Column(DateTime, default=datetime.datetime.utcnow) #для тестов проверка создания данных.
 
 class Users(AbstractModel):
     __tablename__ = "Client"
@@ -22,45 +22,40 @@ class Users(AbstractModel):
 
 class FileServ(AbstractModel):
     __tablename__ = "Schemas"
-
     filename = Column(String)
     file_type = Column(String)
     minio_path = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow) 
+    created_at = Column(DateTime, default=datetime.now()) 
     metadata_json = Column(JSON)
+    schema_id = Column(String, unique=True)
 
 
 def init_db(): #инициализация таблицы.
     AbstractModel.metadata.create_all(bind=engine)
 
 
-def timetest():
-    db = SessionLocal()
-    if not db.query(Users).first():
-        new_table = Users()
-        db.add(new_table)
+def upload(filename: str, file_type: str, minio_path: str, metadata_json:dict[str, any], schema_id: str):
+    db = SessionLocal()   
+    existing_file = db.query(FileServ).filter(FileServ.schema_id == schema_id).first()
+
+    if existing_file:
+        # Обновляем старую запись
+        existing_file.filename = filename
+        existing_file.file_type = file_type
+        existing_file.minio_path = minio_path
+        existing_file.metadata_json = metadata_json
         db.commit()
-    
-    result = db.query(Users).first()
-    db.close()
-    return result
-
-# print(timetest().test_time)
-
-    
-
-def localtest():
-    init_db()
-
-    db = SessionLocal()
-
-    new_user = Users(
-            client_name="Тест",
-            hash="ХэшТест"
+        db.refresh(existing_file)
+        db.close()
+        return existing_file
+    new_file = FileServ(
+        filename = filename,
+        file_type = file_type,
+        minio_path = minio_path,
+        metadata_json = metadata_json,
+        schema_id = schema_id
         )
-    
-    db.add(new_user)
+    db.add(new_file)
     db.commit()
-    db.refresh(new_user)
     db.close()
-    print(new_user.id)
+    return new_file

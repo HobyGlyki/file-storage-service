@@ -1,5 +1,6 @@
 # Использую minio и туториал https://habr.com/ru/companies/otus/articles/801253/
 from typing import BinaryIO
+from datetime import timedelta
 
 import minio
 from minio import Minio
@@ -20,7 +21,8 @@ class S3BucketService:
             self.client.make_bucket(self.bucket)
 
     def upload_file(self, name: str, file: BinaryIO, length: int):
-        return self.client.put_object(self.bucket, name, file, length=length)
+        self.client.put_object(self.bucket, name, file, length=length)
+        return self.bucket + "/" + name
 
     def list(self):
         objects = list(self.client.list_objects(self.bucket))
@@ -39,3 +41,9 @@ class S3BucketService:
             offset = offset + 2048
             if offset >= total_size:
                 break
+    def get_file_url(self, name: str, expires_hours: int = 1):
+        return self.client.presigned_get_object(
+            self.bucket, 
+            name, 
+            expires=timedelta(hours=expires_hours)
+        )

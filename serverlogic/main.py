@@ -50,7 +50,7 @@ class schemalist(BaseModel):
 @app.post('/upload', response_class=HTMLResponse)
 async def upload_file(
     file: UploadFile,
-    schema_id: Optional[int] = Form(None),
+    schema_id: Optional[str] = Form(None),
     from_date: Optional[str] = Form(None),
     to_date: Optional[str] = Form(None),
     alias: Optional[str] = Form(None)
@@ -97,13 +97,16 @@ async def upload_file(
             return add_p + notzip_p + notjson_p
         
     if file.filename[-3:] == "xsd":
+        if schema_id == None:
+            return f'<p>Заполните ID файла</p>'
         try:
         
             jsonxsd = itemlist(from_date=datetime.strftime(datetime.fromisoformat(from_date).date(), "%d.%m.%Y"), 
                                to_date=datetime.strftime(datetime.fromisoformat(to_date).date(), "%d.%m.%Y"), 
                                xsd=file.filename, 
                                alias=alias)
-            minio_handler.upload_file(file.filename, file.file, file.size)
+            Murl = minio_handler.upload_file(file.filename, file.file, file.size)
+            upload(file.filename, file.filename[-3], Murl, jsonxsd.model_dump(mode='json'), schema_id=schema_id)
             return f'<p> файл xsd:{file.filename}</p>'
         except ValidationError as e: return f"<p style='color:red;'>Ошибка валидации данных! {str(e) }.</p>"
     else:
