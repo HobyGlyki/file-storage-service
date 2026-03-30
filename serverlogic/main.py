@@ -50,9 +50,9 @@ class schemalist(BaseModel):
 @app.post('/upload', response_class=HTMLResponse)
 async def upload_file(
     file: UploadFile,
-    schema_id: Optional[str] = Form(None),
-    from_date: Optional[date] = Form(None),
-    to_date: Optional[date] = Form(None),
+    schema_id: Optional[int] = Form(None),
+    from_date: Optional[str] = Form(None),
+    to_date: Optional[str] = Form(None),
     alias: Optional[str] = Form(None)
 ):
     #Zip файлы
@@ -98,13 +98,13 @@ async def upload_file(
         
     if file.filename[-3:] == "xsd":
         try:
-            jsonxsd = itemlist(
-                from_date,
-                to_date,
-                file.filename,
-                alias)
+        
+            jsonxsd = itemlist(from_date=datetime.strftime(datetime.fromisoformat(from_date).date(), "%d.%m.%Y"), 
+                               to_date=datetime.strftime(datetime.fromisoformat(to_date).date(), "%d.%m.%Y"), 
+                               xsd=file.filename, 
+                               alias=alias)
             minio_handler.upload_file(file.filename, file.file, file.size)
             return f'<p> файл xsd:{file.filename}</p>'
-        except ValidationError: return "<p style='color:red;'>Ошибка валидации данных! Проверьте формат даты (ДД.ММ.ГГГГ).</p>"
+        except ValidationError as e: return f"<p style='color:red;'>Ошибка валидации данных! {str(e) }.</p>"
     else:
         return f'<p>невернывй тип файла, загрузити xsd или zip с json файлом </p>'
