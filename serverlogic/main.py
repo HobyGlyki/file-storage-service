@@ -1,12 +1,12 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Form
 from serverlogic.database import *
 from fastapi.responses import FileResponse, HTMLResponse
 from datetime import date, datetime
 from zipfile import ZipFile
 from io import BytesIO
 import json
-from pydantic import BaseModel, field_validator
-from typing import List
+from pydantic import BaseModel, field_validator, ValidationError
+from typing import List, Optional
 from serverlogic.mini import S3BucketService
 
 
@@ -48,7 +48,13 @@ class schemalist(BaseModel):
     
 
 @app.post('/upload', response_class=HTMLResponse)
-async def upload_file(file: UploadFile):
+async def upload_file(
+    file: UploadFile,
+    schema_id: Optional[str] = Form(None),
+    from_date: Optional[date] = Form(None),
+    to_date: Optional[date] = Form(None),
+    alias: Optional[str] = Form(None)
+):
     #Zip файлы
     if file.filename[-3:] == "zip":
 
@@ -80,7 +86,7 @@ async def upload_file(file: UploadFile):
                     minio_handler.upload_file(item.xsd, myzip.open(item.xsd), myzip.getinfo(item.xsd).file_size)
                 else: not_in_zip.append(item.xsd)
             not_in_json = list(set(result) - set(add_file))
-            
+
             if add_file: add_p = f"<p> Добавленны файла:{str(add_file)}</p>"
             else: add_p = f"<p> ошибка добавления файла </p>"
             if not_in_zip: notzip_p= f'<p>Файлы отсутсвуют в Zip:{str(not_in_zip)}</p>'
@@ -91,7 +97,14 @@ async def upload_file(file: UploadFile):
             return add_p + notzip_p + notjson_p
         
     if file.filename[-3:] == "xsd":
-        print(minio_handler.upload_file(file.filename, file.file, file.size))
-        return f'<p> файл xsd:{file.filename}</p>'
+        try:
+            jsonxsd = itemlist(
+                from_date,
+                to_date,
+                file.filename,
+                alias)
+            minio_handler.upload_file(file.filename, file.file, file.size)
+            return f'<p> файл xsd:{file.filename}</p>'
+        except ValidationError: return "<p style='color:red;'>Ошибка валидации данных! Проверьте формат даты (ДД.ММ.ГГГГ).</p>"
     else:
         return f'<p>невернывй тип файла, загрузити xsd или zip с json файлом </p>'

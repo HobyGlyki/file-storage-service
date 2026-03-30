@@ -14,13 +14,37 @@
 <h1>Загрузка схем в Minio</h1>
 
     <form id='form' hx-encoding='multipart/form-data' hx-post='/upload' hx-target='#result' hx-swap="beforebegin" >
-        <input type='file' name='file'>
+       <input type="file" name="file" id="fileInput" hx-on:change="checkFileType()">
+
+        <div id="manual-metadata" style="display: none; margin-top: 20px; border: 1px solid #ccc; padding: 15px;">
+            <h3>Метаданные для XSD</h3>
+            <label>ID (имя ключа): <input type="text" name="schema_id"></label><br>
+            <label>Действует с: <input type="date" name="from_date"></label><br>
+            <label>Действует по: <input type="date" name="to_date"></label><br>
+            <label>Описание (Alias): <input type="text" name="alias"></label>
+        </div>
+
         <button>
             Upload
         </button>
+        
         <progress id='progress' value='0' max='100'></progress>
         </form>
 
 <div id="result"></div>
+
+<script>
+function checkFileType() {
+    const fileInput = document.getElementById('fileInput');
+    const metaForm = document.getElementById('manual-metadata');
+    const fileName = fileInput.value.toLowerCase();
+
+    if (fileName.endsWith('.xsd')) {
+        metaForm.style.display = 'block';
+    } else {
+        metaForm.style.display = 'none';
+    }
+}
+</script>
 </body>
 
