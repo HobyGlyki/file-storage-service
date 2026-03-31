@@ -1,6 +1,5 @@
-from fastapi import FastAPI, File, UploadFile, Form, Request, Response
-from serverlogic.database import *
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi import FastAPI, File, UploadFile, Form, Request, Response, Cookie, Depends
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import date, datetime
 from zipfile import ZipFile
@@ -8,9 +7,15 @@ from io import BytesIO
 import json
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List, Optional
-from serverlogic.mini import S3BucketService
 
-init_db()
+from serverlogic.database import *
+from serverlogic.mini import S3BucketService
+from serverlogic.hash import *
+
+init_db(os.getenv('admin_user'), get_password_hash(os.getenv('admin_password')))
+
+app = FastAPI()
+templates = Jinja2Templates(directory="client")
 minio_handler = S3BucketService(
     minio_endpoint=os.getenv("MINIO_ENDPOINT"),
     access_key=os.getenv("MINIO_ROOT_USER"),
@@ -18,43 +23,6 @@ minio_handler = S3BucketService(
     bucket=os.getenv("MINIO_BUCKET_NAME"),
     secure=False
 )
-
-app = FastAPI()
-templates = Jinja2Templates(directory="client")
-
-
-
-
-@app.get("/")
-async def index():
-    return FileResponse('client/index.html')
-
-@app.get("/update", response_class=HTMLResponse)
-async def get_update_page(request: Request):
-    schemas = get_all_schemas()
-    return templates.TemplateResponse(request= request, name= "update.html", context={"schemas": schemas})
-
-@app.get('/edit/{schema_id}', response_class =HTMLResponse)
-async def update_json(request: Request, schema_id:str):
-    schema = get_schema_by_id(schema_id)
-    metadata = json.dumps(schema.metadata_json, ensure_ascii=False, indent=4)
-    return templates.TemplateResponse(request, 'edit.html', {"schema": schema, "metadata_pretty": metadata})
-
-@app.get("/download", response_class=HTMLResponse)
-async def get_update_page(request: Request):
-    schemas = get_all_schemas()
-    return templates.TemplateResponse(request= request, name= "download.html", context={"schemas": schemas})
-
-@app.get('/download/{schema_id}')
-async def update_json(schema_id:str):
-    schema = get_schema_by_id(schema_id)
-    name = schema.filename
-    headers = {
-        'Content-Disposition': f'attachment; filename="{name}"'
-    }
-    return StreamingResponse(headers= headers, content= minio_handler.download_file(name), media_type='application/octet-stream', )
-
-
 
 class itemlist(BaseModel):
     from_date: date
@@ -77,14 +45,90 @@ class itemlist(BaseModel):
 class schemalist(BaseModel):
     tastes: dict[str, itemlist]  
 
+
+
+async def get_current_user(session_user: Optional[str] = Cookie(None)):
+    if not session_user:
+        return RedirectResponse(url="/login?error=unauthorized", status_code=303)
+    return session_user
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html")
+
+@app.post("/loginuser")
+async def login(username: str = Form(...), password: str = Form(...)):
+    user = get_user(username)
+
+    if user and verify_password(password, user.hash):
+        response = Response(headers={"HX-Redirect": "/"}) 
+        response.set_cookie(key="session_user", value=username, httponly=True)
+        print(f"Пользователь {username} вошел")
+        return response
+    return HTMLResponse("<p style='color:red;'>Неверный логин или пароль</p>")
+
+@app.get("/exit")
+async def logout():
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie(key="session_user", path="/")
+    return response
+
+
+
+@app.get("/")
+async def index(user =Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
+    return FileResponse('client/index.html')
+
+@app.get("/update", response_class=HTMLResponse)
+async def get_update_page(request: Request, user = Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
+    schemas = get_all_schemas()
+    return templates.TemplateResponse(request= request, name= "update.html", context={"schemas": schemas})
+
+
+
+@app.get('/edit/{schema_id}', response_class =HTMLResponse)
+async def update_json(request: Request, schema_id:str, user = Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
+    schema = get_schema_by_id(schema_id)
+    metadata = json.dumps(schema.metadata_json, ensure_ascii=False, indent=4)
+    return templates.TemplateResponse(request, 'edit.html', {"schema": schema, "metadata_pretty": metadata})
+
+@app.get("/download", response_class=HTMLResponse)
+async def get_update_page(request: Request, user =Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
+    schemas = get_all_schemas()
+    return templates.TemplateResponse(request= request, name= "download.html", context={"schemas": schemas})
+
+
+
+@app.get('/download/{schema_id}')
+async def update_json(schema_id:str, user =Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
+    schema = get_schema_by_id(schema_id)
+    name = schema.filename
+    headers = {
+        'Content-Disposition': f'attachment; filename="{name}"'
+    }
+    return StreamingResponse(headers= headers, content= minio_handler.download_file(name), media_type='application/octet-stream', )
+
 @app.post('/upload', response_class=HTMLResponse)
 async def upload_file(
     file: UploadFile,
     schema_id: Optional[str] = Form(None),
     from_date: Optional[str] = Form(None),
     to_date: Optional[str] = Form(None),
-    alias: Optional[str] = Form(None)
+    alias: Optional[str] = Form(None),
+    user =Depends(get_current_user)
 ):
+    if isinstance(user, RedirectResponse):
+        return user
     #Zip файлы
     if file.filename[-3:] == "zip":
 
@@ -149,13 +193,15 @@ async def upload_file(
         except ValidationError as e: return f"<p style='color:red;'>Ошибка валидации данных! {str(e) }.</p>"
     else:
         return f'<p>невернывй тип файла, загрузити xsd или zip с json файлом </p>'
-    
 
 @app.post('/save/{schema_id}', response_class=HTMLResponse)
 async def save_json(
     request: Request,
     schema_id: str,
-    metadata_str: str=Form(..., alias="metadata")):
+    metadata_str: str=Form(..., alias="metadata"),
+    user =Depends(get_current_user)):
+    if isinstance(user, RedirectResponse):
+        return user
     try:
         metadata_json = json.loads(metadata_str)
         metadata_valid = itemlist(**metadata_json)
