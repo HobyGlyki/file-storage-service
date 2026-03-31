@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, Form, Request, Response
 from serverlogic.database import *
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from datetime import date, datetime
 from zipfile import ZipFile
@@ -40,6 +40,19 @@ async def update_json(request: Request, schema_id:str):
     metadata = json.dumps(schema.metadata_json, ensure_ascii=False, indent=4)
     return templates.TemplateResponse(request, 'edit.html', {"schema": schema, "metadata_pretty": metadata})
 
+@app.get("/download", response_class=HTMLResponse)
+async def get_update_page(request: Request):
+    schemas = get_all_schemas()
+    return templates.TemplateResponse(request= request, name= "download.html", context={"schemas": schemas})
+
+@app.get('/download/{schema_id}')
+async def update_json(schema_id:str):
+    schema = get_schema_by_id(schema_id)
+    name = schema.filename
+    headers = {
+        'Content-Disposition': f'attachment; filename="{name}"'
+    }
+    return StreamingResponse(headers= headers, content= minio_handler.download_file(name), media_type='application/octet-stream', )
 
 
 
@@ -55,8 +68,7 @@ class itemlist(BaseModel):
             try:
                 return datetime.strptime(v, "%d.%m.%Y").date()
             except ValueError:
-                 pass # Идем дальше, если не подошло
-            # 2. Пробуем ISO формат (ГГГГ-ММ-ДД), который присылает HTML
+                 pass
             try:
                 return datetime.fromisoformat(v).date()
             except ValueError:

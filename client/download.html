@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<head>
+        <head>
+            <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        </head>
+        <body>
+            <a href="/"">Загрузка</a>
+            <h1>Управление справочником</h1>
+            <table>
+                    <thead>
+                        <tr>
+                            <th>ID Схемы</th>
+                            <th>Имя файла</th>
+                            <th>Метаданные</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for schema in schemas %}
+                        <tr id="row-{{ schema.schema_id }}">
+                            <td>{{ schema.schema_id }}</td>
+                            <td>{{ schema.filename }}</td>
+                            <td><code>{{ schema.metadata_json }}</code></td>
+                            <td>
+                                <a href="/download/{{ schema.schema_id }}" 
+                                    class="button" 
+                                    style="text-decoration: none; appearance: button; padding: 5px;" 
+                                    download>
+                                    Скачать
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+        </body>
+    </html>
