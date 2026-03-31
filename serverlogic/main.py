@@ -20,7 +20,6 @@ minio_handler = S3BucketService(
     bucket=os.getenv("MINIO_BUCKET_NAME"),
     secure=False
 )
-print(os.getenv("MINIO_ENDPOINT"))
 
 app = FastAPI()
 
@@ -74,27 +73,35 @@ async def upload_file(
 
             if not jsonfile:
                 return f'<p>невернывй тип файла, загрузити XLS или zip с json файлом </p>'
+            try:
+                resultjson = json.loads(myzip.read(jsonfile))
+                data = schemalist(tastes=resultjson)
+                names = list(data.tastes.keys())
+                operation = []
+                add_file = []
+                not_in_zip = []
+                for name, item in data.tastes.items():
+                    if item.xsd in ziplist:
+                        Murl = minio_handler.upload_file(item.xsd, myzip.open(item.xsd), myzip.getinfo(item.xsd).file_size)
+                        update = upload(item.xsd, item.xsd[-3], Murl, item.model_dump(mode='json'), name) 
+                        add_file.append(item.xsd)
+                        operation.append(update)
+                    else: not_in_zip.append(item.xsd)
+                not_in_json = list(set(result) - set(add_file))
+
+                add_file_text = "".join(f"<li>{operation[n]}:{file}</li>" for n, file in enumerate(add_file))
+                not_in_zip_text = "".join(f"<li>{file}</li>" for file in not_in_zip)
+                not_in_json_text = "".join(f"<li>{file}</li>" for file in not_in_json)
             
-            resultjson = json.loads(myzip.read(jsonfile))
-            data = schemalist(tastes=resultjson)
-            name = list(data.tastes.keys())
-            add_file = []
-            not_in_zip = []
-            for name, item in data.tastes.items():
-                if item.xsd in ziplist:
-                    add_file.append(item.xsd)
-                    minio_handler.upload_file(item.xsd, myzip.open(item.xsd), myzip.getinfo(item.xsd).file_size)
-                else: not_in_zip.append(item.xsd)
-            not_in_json = list(set(result) - set(add_file))
+                if add_file: add_p = f"<p> Операция оконченна успешна: </p><ul> {add_file_text} </ul>"
+                else: add_p = f"<p> ошибка добавления файла </p>"
+                if not_in_zip: notzip_p= f'<p>Файлы отсутсвуют в Zip:</p> <ul> {str(not_in_zip_text)}</ul>'
+                else: notzip_p = ''
+                if not_in_json: notjson_p=f'<p>Файлы отсутсвуют в json: </p> <ul> {str(not_in_json_text)}</ul>'
+                else: notjson_p = ''
 
-            if add_file: add_p = f"<p> Добавленны файла:{str(add_file)}</p>"
-            else: add_p = f"<p> ошибка добавления файла </p>"
-            if not_in_zip: notzip_p= f'<p>Файлы отсутсвуют в Zip:{str(not_in_zip)}</p>'
-            else: notzip_p = ''
-            if not_in_json: notjson_p=f'<p>Файлы отсутсвуют в json:{str(not_in_json)}</p>'
-            else: notjson_p = ''
-
-            return add_p + notzip_p + notjson_p
+                return add_p + notzip_p + notjson_p
+            except Exception as e: return f"<p> ошибка загрузки файла: {e[:40]}</p>"
         
     if file.filename[-3:] == "xsd":
         if schema_id == None:

@@ -25,7 +25,8 @@ class FileServ(AbstractModel):
     filename = Column(String)
     file_type = Column(String)
     minio_path = Column(String)
-    created_at = Column(DateTime, default=datetime.now()) 
+    created_at = Column(DateTime, default=datetime.now)
+    last_update_at = Column(DateTime, default=datetime.now) 
     metadata_json = Column(JSON)
     schema_id = Column(String, unique=True)
 
@@ -39,15 +40,17 @@ def upload(filename: str, file_type: str, minio_path: str, metadata_json:dict[st
     existing_file = db.query(FileServ).filter(FileServ.schema_id == schema_id).first()
 
     if existing_file:
+        date = datetime.now()
         # Обновляем старую запись
         existing_file.filename = filename
         existing_file.file_type = file_type
         existing_file.minio_path = minio_path
         existing_file.metadata_json = metadata_json
+        existing_file.last_update_at = date 
         db.commit()
         db.refresh(existing_file)
         db.close()
-        return existing_file
+        return "База Данных обнавленна"
     new_file = FileServ(
         filename = filename,
         file_type = file_type,
@@ -58,4 +61,4 @@ def upload(filename: str, file_type: str, minio_path: str, metadata_json:dict[st
     db.add(new_file)
     db.commit()
     db.close()
-    return new_file
+    return "База Данных Созданна"

@@ -3,9 +3,25 @@
 <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 
 <script>
-        htmx.on('#form', 'htmx:xhr:progress', function(evt) {
-          htmx.find('#progress').setAttribute('value', evt.detail.loaded/evt.detail.total * 100)
-        });
+
+    htmx.on('#form', 'htmx:xhr:progress', function(evt) {
+        const progress = htmx.find('#progress');
+
+        progress.style.display = 'block'; 
+        
+        progress.setAttribute('value', evt.detail.loaded / evt.detail.total * 100);
+    });
+
+
+    htmx.on('#form', 'htmx:afterRequest', function(evt) {
+        const progress = htmx.find('#progress');
+        
+
+        progress.setAttribute('value', 0);
+        setTimeout(() => {
+            progress.style.display = 'none';
+        }, 1000);
+    });
 </script>
 
 </head>
@@ -13,7 +29,7 @@
 <body>
 <h1>Загрузка схем в Minio</h1>
 
-    <form id='form' hx-encoding='multipart/form-data' hx-post='/upload' hx-target='#result' hx-swap="beforebegin" >
+    <form id='form' hx-encoding='multipart/form-data' hx-post='/upload' hx-target='#result'  >
        <input type="file" name="file" id="fileInput" hx-on:change="checkFileType()">
 
         <div id="manual-metadata" style="display: none; margin-top: 20px; border: 1px solid #ccc; padding: 15px;">
