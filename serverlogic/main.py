@@ -1,6 +1,7 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, Request, Response
 from serverlogic.database import *
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 from datetime import date, datetime
 from zipfile import ZipFile
 from io import BytesIO
@@ -9,10 +10,7 @@ from pydantic import BaseModel, field_validator, ValidationError
 from typing import List, Optional
 from serverlogic.mini import S3BucketService
 
-
 init_db()
-
-
 minio_handler = S3BucketService(
     minio_endpoint=os.getenv("MINIO_ENDPOINT"),
     access_key=os.getenv("MINIO_ROOT_USER"),
@@ -22,10 +20,28 @@ minio_handler = S3BucketService(
 )
 
 app = FastAPI()
+templates = Jinja2Templates(directory="client")
+
+
+
 
 @app.get("/")
 async def index():
     return FileResponse('client/index.html')
+
+@app.get("/update", response_class=HTMLResponse)
+async def get_update_page(request: Request):
+    schemas = get_all_schemas()
+    return templates.TemplateResponse(request= request, name= "update.html", context={"schemas": schemas})
+
+@app.get('/edit/{schema_id}', response_class =HTMLResponse)
+async def update_json(request: Request, schema_id:str):
+    schema = get_schema_by_id(schema_id)
+    metadata = json.dumps(schema.metadata_json, ensure_ascii=False, indent=4)
+    return templates.TemplateResponse(request, 'edit.html', {"schema": schema, "metadata_pretty": metadata})
+
+
+
 
 class itemlist(BaseModel):
     from_date: date
@@ -39,12 +55,15 @@ class itemlist(BaseModel):
             try:
                 return datetime.strptime(v, "%d.%m.%Y").date()
             except ValueError:
-                raise ValueError(f"Неверный формат даты: {v}")
-
+                 pass # Идем дальше, если не подошло
+            # 2. Пробуем ISO формат (ГГГГ-ММ-ДД), который присылает HTML
+            try:
+                return datetime.fromisoformat(v).date()
+            except ValueError:
+                raise ValueError(f"Неверный формат даты: {v}. Ожидается ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
 
 class schemalist(BaseModel):
     tastes: dict[str, itemlist]  
-    
 
 @app.post('/upload', response_class=HTMLResponse)
 async def upload_file(
@@ -108,8 +127,8 @@ async def upload_file(
             return f'<p>Заполните ID файла</p>'
         try:
         
-            jsonxsd = itemlist(from_date=datetime.strftime(datetime.fromisoformat(from_date).date(), "%d.%m.%Y"), 
-                               to_date=datetime.strftime(datetime.fromisoformat(to_date).date(), "%d.%m.%Y"), 
+            jsonxsd = itemlist(from_date=from_date, 
+                               to_date=to_date, 
                                xsd=file.filename, 
                                alias=alias)
             Murl = minio_handler.upload_file(file.filename, file.file, file.size)
@@ -118,3 +137,20 @@ async def upload_file(
         except ValidationError as e: return f"<p style='color:red;'>Ошибка валидации данных! {str(e) }.</p>"
     else:
         return f'<p>невернывй тип файла, загрузити xsd или zip с json файлом </p>'
+    
+
+@app.post('/save/{schema_id}', response_class=HTMLResponse)
+async def save_json(
+    request: Request,
+    schema_id: str,
+    metadata_str: str=Form(..., alias="metadata")):
+    try:
+        metadata_json = json.loads(metadata_str)
+        metadata_valid = itemlist(**metadata_json)
+
+        operation = save_schema_by_id(metadata_valid.model_dump(mode='json'), schema_id)
+        print(operation)
+        
+        return Response(headers={"HX-Refresh": "true"})
+    except Exception as e:
+        print(e)

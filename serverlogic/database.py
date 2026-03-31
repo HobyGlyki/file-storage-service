@@ -62,3 +62,32 @@ def upload(filename: str, file_type: str, minio_path: str, metadata_json:dict[st
     db.commit()
     db.close()
     return "База Данных Созданна"
+
+def get_all_schemas():
+    db = SessionLocal()
+    schemas = db.query(FileServ).all()
+    db.close()
+    return schemas
+
+def get_schema_by_id(schema_id: str):
+    db = SessionLocal()
+    schema = db.query(FileServ).filter(FileServ.schema_id == schema_id).first()
+    db.close()
+    return schema
+
+def save_schema_by_id(metadata_json:dict[str, any], schema_id: str):
+    db = SessionLocal()   
+    existing_file = db.query(FileServ).filter(FileServ.schema_id == schema_id).first()
+
+    if existing_file:
+        date = datetime.now()
+        # Обновляем старую запись
+        existing_file.metadata_json = metadata_json
+        existing_file.last_update_at = date 
+        db.commit()
+        db.refresh(existing_file)
+        db.close()
+        return "База Данных обнавленна"
+    else:
+        db.close()
+        return "ошибка: Данной схемы не существует. "

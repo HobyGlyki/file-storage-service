@@ -5,17 +5,13 @@
 <script>
 
     htmx.on('#form', 'htmx:xhr:progress', function(evt) {
-        const progress = htmx.find('#progress');
-
+        const progress = htmx.find('#progress')
         progress.style.display = 'block'; 
-        
-        progress.setAttribute('value', evt.detail.loaded / evt.detail.total * 100);
+          htmx.find('#progress').setAttribute('value', evt.detail.loaded/evt.detail.total * 100)
     });
 
-
     htmx.on('#form', 'htmx:afterRequest', function(evt) {
-        const progress = htmx.find('#progress');
-        
+        const progress = htmx.find('#progress');        
 
         progress.setAttribute('value', 0);
         setTimeout(() => {
@@ -27,6 +23,9 @@
 </head>
 
 <body>
+
+    <a href="/"">Загрузка</a>
+        <a href="/update";">Управление справочником</a>
 <h1>Загрузка схем в Minio</h1>
 
     <form id='form' hx-encoding='multipart/form-data' hx-post='/upload' hx-target='#result'  >

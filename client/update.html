@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<head>
+        <head>
+            <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        </head>
+        <body>
+            <a href="/"">Загрузка</a>
+            <h1>Управление справочником</h1>
+            <table>
+                    <thead>
+                        <tr>
+                            <th>ID Схемы</th>
+                            <th>Имя файла</th>
+                            <th>Метаданные</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for schema in schemas %}
+                        <tr id="row-{{ schema.schema_id }}">
+                            <td>{{ schema.schema_id }}</td>
+                            <td>{{ schema.filename }}</td>
+                            <td><code>{{ schema.metadata_json }}</code></td>
+                            <td>
+                                <button hx-get="/edit/{{ schema.schema_id }}" 
+                                        hx-target='[id="row-{{ schema.schema_id }}"]' 
+                                        hx-swap="outerHTML">
+                                    Изменить
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+        </body>
+    </html>
