@@ -1,0 +1,19 @@
+<tr id="row-{{ schema.schema_id }}">
+    <td>{{ schema.schema_id }}</td>
+    <td>{{ schema.filename }}</td>
+    <td>
+        <textarea id="input-{{ schema.schema_id }}" 
+          name="metadata" 
+          rows="10" 
+          style="width: 100%;">{{ metadata_pretty }}</textarea>
+    </td>
+    <td>
+        <button hx-post="/save/{{ schema.schema_id }}" 
+                hx-include='[id="input-{{ schema.schema_id }}"]'
+                hx-target='[id="row-{{ schema.schema_id }}"]' 
+                hx-swap="outerHTML">
+            Сохранить
+        </button>
+        <button hx-get="/update" hx-target="body">Отмена</button>
+    </td>
+</tr>

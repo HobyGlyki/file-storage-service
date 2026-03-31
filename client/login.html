@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+</head>
+<body>
+    <div class="login-card">
+        <h2>Вход в Хранилище</h2>
+        {% if request.query_params.get('error') == 'unauthorized' %}
+            <div style="color: orange; margin-bottom: 10px; text-align: center;">
+                Пожалуйста, войдите в систему, чтобы продолжить.
+            </div>
+        {% endif %}
+        <form hx-post="/loginuser" hx-target="#error-msg">
+            <input type="text" name="username" placeholder="Логин" required>
+            <input type="password" name="password" placeholder="Пароль" required>
+            <button type="submit">Войти</button>
+        </form>
+        <div id="error-msg"></div>
+
+</html>
