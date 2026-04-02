@@ -4,6 +4,8 @@ services:
     build: . 
     ports:
       - "8000:8000"
+    volumes:
+      - .:/code
     depends_on:
       db:
         condition: service_healthy
@@ -15,6 +17,7 @@ services:
       - MINIO_BUCKET_NAME=test
       - admin_user=${admin_user}
       - admin_password=${admin_password}
+      - SECRET_SALT=${SECRET_SALT}
 
   # База Данных
   db:

@@ -5,13 +5,18 @@ from datetime import timedelta
 import minio
 from minio import Minio
 
+
 class S3BucketService:
-    def __init__(self, minio_endpoint: str, access_key: str, secret_key: str, bucket: str, secure: bool = False):
+    def __init__(
+        self,
+        minio_endpoint: str,
+        access_key: str,
+        secret_key: str,
+        bucket: str,
+        secure: bool = False,
+    ):
         self.client = Minio(
-            minio_endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
-            secure=secure
+            minio_endpoint, access_key=access_key, secret_key=secret_key, secure=secure
         )
         self.bucket = bucket
         self.startbucket()
@@ -26,7 +31,9 @@ class S3BucketService:
 
     def list(self):
         objects = list(self.client.list_objects(self.bucket))
-        return [{"name": i.object_name, "last_modified": i.last_modified} for i in objects]
+        return [
+            {"name": i.object_name, "last_modified": i.last_modified} for i in objects
+        ]
 
     def stats(self, name: str) -> minio.api.Object:
         return self.client.stat_object(self.bucket, name)
@@ -36,14 +43,15 @@ class S3BucketService:
         total_size = info.size
         offset = 0
         while True:
-            response = self.client.get_object(self.bucket, name, offset=offset, length=2048)
+            response = self.client.get_object(
+                self.bucket, name, offset=offset, length=2048
+            )
             yield response.read()
             offset = offset + 2048
             if offset >= total_size:
                 break
+
     def get_file_url(self, name: str, expires_hours: int = 1):
         return self.client.presigned_get_object(
-            self.bucket, 
-            name, 
-            expires=timedelta(hours=expires_hours)
+            self.bucket, name, expires=timedelta(hours=expires_hours)
         )
